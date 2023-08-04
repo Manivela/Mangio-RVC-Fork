@@ -1961,16 +1961,11 @@ from io import BytesIO
 from flask import make_response, request
 
 
-# home route that returns below text when root url is accessed
-@app.route("/predict", methods=["POST"])
-def hello_world():
-    model = request.form["model"]
-    file = request.files["file"]
-
-    if "file" not in request.files:
+def use_rvc_infer(model, files):
+    if "file" not in files:
         return "No file part"
 
-    file = request.files["file"]
+    file = files
 
     # If user does not select file, browser also submits an empty part without filename
     if file.filename == "":
@@ -2013,5 +2008,21 @@ def hello_world():
     return "Something went wrong"
 
 
+# home route that returns below text when root url is accessed
+@app.route("/infer", methods=["POST"])
+def infer():
+    return use_rvc_infer(request.form["model"], request.files["file"])
+
+
+def runpod_handler(event):
+    print(event)
+    return use_rvc_infer(None, None)
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    if os.environ.get("RUNPOD_POD_ID", False):
+        import runpod
+
+        runpod.serverless.start({"handler": runpod_handler})
+    else:
+        app.run(debug=True)
