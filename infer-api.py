@@ -1968,7 +1968,7 @@ bucketName = "voice-ai-private"
 
 def use_rvc_infer(model, index, file):
     # If user does not select file, browser also submits an empty part without filename
-    if file.filename == "":
+    if not file or file.filename == "":
         return "No selected file"
 
     if file:
@@ -2060,7 +2060,7 @@ def train():
 
 def runpod_handler(event):
     print(event)
-    return use_rvc_infer(None, None, None)
+    return use_rvc_infer(event["model"], event["index"], event["file"])
 
 
 if __name__ == "__main__":
