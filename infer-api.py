@@ -1957,8 +1957,7 @@ if config.is_cli:
 # instance of flask application
 app = Flask(__name__)
 
-from flask import make_response, request
-import io
+from flask import request
 import boto3
 
 
@@ -1966,44 +1965,43 @@ s3 = boto3.client("s3")
 bucketName = "voice-ai-private"
 
 
-def use_rvc_infer(model, index, voiceUrl):
-    # If user does not select file, browser also submits an empty part without filename
+def use_rvc_infer(model, index, inputS3Key):
+    temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
-    file = s3.download_file(bucketName, voiceUrl, "temp_audiofile.wav")
+    s3.download_file(bucketName, inputS3Key, temp_filepath)
 
-    if file:
-        # Save the file to a temporary location
-        temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
-        file.save(temp_filepath)
-        get_vc(model, 0.33, 0.33)
+    # Save the file to a temporary location
+    get_vc(model, 0.33, 0.33)
 
-        buf = io.BytesIO()
-        info, opt = vc_single(
-            0,
-            "",
-            temp_filepath,
-            0.0,
-            None,
-            "rmvpe",
-            "",
-            index or "",
-            0.75,
-            3,
-            0,
-            0.25,
-            0.33,
-            120,
-        )
-        os.remove(temp_filepath)
+    info, opt = vc_single(
+        0,
+        "",
+        temp_filepath,
+        0.0,
+        None,
+        "rmvpe",
+        "",
+        index or "",
+        0.75,
+        3,
+        0,
+        0.25,
+        0.33,
+        120,
+    )
+    os.remove(temp_filepath)
 
-        if "Success" in info:
-            tgt_sr, audio_opt = opt
-            sf.write(buf, audio_opt, tgt_sr, format="WAV")
-            response = make_response(buf.getvalue())
-            buf.close()
-            response.headers["Content-Type"] = "audio/wav"
-            response.headers["Content-Disposition"] = "attachment; filename=output.wav"
-            return response
+    if "Success" in info:
+        tgt_sr, audio_opt = opt
+        sf.write("output.wav", audio_opt, tgt_sr, format="WAV")
+
+        with open("output.wav", "rb") as file:
+            pthKey = "output/test/test.wav"
+            s3.upload_fileobj(file, bucketName, pthKey)
+            os.remove("output.wav")
+            return {
+                "output_url": f"https://{bucketName}.s3.amazonaws.com/{pthKey}",
+            }
 
     return "Something went wrong"
 
@@ -2012,7 +2010,7 @@ def use_rvc_infer(model, index, voiceUrl):
 @app.route("/infer", methods=["POST"])
 def infer():
     return use_rvc_infer(
-        request.form["model"], request.form["index"], request.form["voiceUrl"]
+        request.form["model"], request.form["index"], request.form["inputS3Key"]
     )
 
 
@@ -2044,9 +2042,9 @@ def train():
     with open("./weights/test.pth", "rb") as pth, open(
         "./logs/test/added_IVF262_Flat_nprobe_1_test_v2.index", "rb"
     ) as index:
-        pthKey = "output/test/test.pth"
+        pthKey = "models/test/test.pth"
         s3.upload_fileobj(pth, bucketName, pthKey)
-        indexKey = "output/test/test.index"
+        indexKey = "models/test/test.index"
         s3.upload_fileobj(index, bucketName, indexKey)
 
         return {
@@ -2057,7 +2055,7 @@ def train():
 
 def runpod_handler(event):
     print(event)
-    return use_rvc_infer(event["model"], event["index"], event["voiceUrl"])
+    return use_rvc_infer(event["model"], event["index"], event["inputS3Key"])
 
 
 if __name__ == "__main__":
