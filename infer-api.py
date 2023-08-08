@@ -2030,4 +2030,4 @@ if __name__ == "__main__":
 
         runpod.serverless.start({"handler": runpod_handler})
     else:
-        app.run(debug=True)
+        app.run(debug=True, host="0.0.0.0", port=5000)
