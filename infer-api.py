@@ -1957,8 +1957,13 @@ if config.is_cli:
 # instance of flask application
 app = Flask(__name__)
 
-from io import BytesIO
 from flask import make_response, request
+import io
+import boto3
+
+
+s3 = boto3.client("s3")
+bucketName = "voice-ai-private"
 
 
 def use_rvc_infer(model, index, file):
@@ -1972,7 +1977,7 @@ def use_rvc_infer(model, index, file):
         file.save(temp_filepath)
         get_vc(model, 0.33, 0.33)
 
-        buf = BytesIO()
+        buf = io.BytesIO()
         info, opt = vc_single(
             0,
             "",
@@ -2012,6 +2017,45 @@ def infer():
     return use_rvc_infer(
         request.form["model"], request.form["index"], request.files["file"]
     )
+
+
+@app.route("/train", methods=["POST"])
+def train():
+    print(request)
+
+    # preprocess_dataset(
+    #     "C:\\Users\\Yunus\\Repos\\Mangio-RVC-Fork\\datasets\\ahmet", "test", "40k", 8
+    # )
+    # extract_f0_feature("0", 8, "rmvpe", True, "test", "v2", 64)
+    # click_train(
+    #     "test",
+    #     "40k",
+    #     True,
+    #     0,
+    #     5,
+    #     6,
+    #     5,
+    #     False,
+    #     "pretrained_v2/f0G40k.pth",
+    #     "pretrained_v2/f0D40k.pth",
+    #     "0",
+    #     True,
+    #     False,
+    #     "v2",
+    # )
+    # train_index('test', 'v2')
+    with open("./weights/test.pth", "rb") as pth, open(
+        "./logs/test/added_IVF262_Flat_nprobe_1_test_v2.index", "rb"
+    ) as index:
+        pthKey = "output/test/test.pth"
+        s3.upload_fileobj(pth, bucketName, pthKey)
+        indexKey = "output/test/test.index"
+        s3.upload_fileobj(index, bucketName, indexKey)
+
+        return {
+            "model_url": f"https://{bucketName}.s3.amazonaws.com/{pthKey}",
+            "index_url": f"https://{bucketName}.s3.amazonaws.com/{indexKey}",
+        }
 
 
 def runpod_handler(event):

@@ -46,3 +46,5 @@ onnxruntime-gpu
 torchcrepe==0.0.20
 fastapi==0.88
 stftpitchshift==1.5.1
+flask
+runpod
