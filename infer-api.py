@@ -1986,7 +1986,7 @@ def use_rvc_infer(model, index, files):
             None,
             "rmvpe",
             "",
-            index,
+            index or "",
             0.75,
             3,
             0,
@@ -2011,6 +2011,9 @@ def use_rvc_infer(model, index, files):
 # home route that returns below text when root url is accessed
 @app.route("/infer", methods=["POST"])
 def infer():
+    print(request)
+    print(request.form)
+    print(request.files)
     return use_rvc_infer(
         request.form["model"], request.form["index"], request.files["file"]
     )
