@@ -1961,12 +1961,7 @@ from io import BytesIO
 from flask import make_response, request
 
 
-def use_rvc_infer(model, index, files):
-    if "file" not in files:
-        return "No file part"
-
-    file = files
-
+def use_rvc_infer(model, index, file):
     # If user does not select file, browser also submits an empty part without filename
     if file.filename == "":
         return "No selected file"
