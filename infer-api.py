@@ -1961,7 +1961,7 @@ from io import BytesIO
 from flask import make_response, request
 
 
-def use_rvc_infer(model, files):
+def use_rvc_infer(model, index, files):
     if "file" not in files:
         return "No file part"
 
@@ -1986,7 +1986,7 @@ def use_rvc_infer(model, files):
             None,
             "rmvpe",
             "",
-            "./logs/yunus/added_IVF211_Flat_nprobe_1_yunus_v2.index",
+            index,
             0.75,
             3,
             0,
@@ -2011,12 +2011,14 @@ def use_rvc_infer(model, files):
 # home route that returns below text when root url is accessed
 @app.route("/infer", methods=["POST"])
 def infer():
-    return use_rvc_infer(request.form["model"], request.files["file"])
+    return use_rvc_infer(
+        request.form["model"], request.form["index"], request.files["file"]
+    )
 
 
 def runpod_handler(event):
     print(event)
-    return use_rvc_infer(None, None)
+    return use_rvc_infer(None, None, None)
 
 
 if __name__ == "__main__":
