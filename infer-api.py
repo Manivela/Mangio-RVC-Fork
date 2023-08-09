@@ -1965,9 +1965,11 @@ s3 = boto3.client("s3")
 bucketName = "voice-ai-private"
 
 
-def use_rvc_infer(model, index, inputS3Key):
+def use_rvc_infer(index):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
+
+    (model, index, inputS3Key) = index["model"], index["index"], index["inputS3Key"]
     s3.download_file(bucketName, inputS3Key, temp_filepath)
 
     # Save the file to a temporary location
@@ -2009,9 +2011,7 @@ def use_rvc_infer(model, index, inputS3Key):
 # home route that returns below text when root url is accessed
 @app.route("/infer", methods=["POST"])
 def infer():
-    return use_rvc_infer(
-        request.form["model"], request.form["index"], request.form["inputS3Key"]
-    )
+    return use_rvc_infer(request.form["index"])
 
 
 @app.route("/train", methods=["POST"])
@@ -2055,7 +2055,7 @@ def train():
 
 def runpod_handler(event):
     print(event)
-    return use_rvc_infer(event["model"], event["index"], event["inputS3Key"])
+    return use_rvc_infer(event["input"])
 
 
 if __name__ == "__main__":
