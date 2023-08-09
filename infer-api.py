@@ -1959,9 +1959,14 @@ app = Flask(__name__)
 
 from flask import request
 import boto3
+import datetime
 
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+)
 
-s3 = boto3.client("s3")
 bucketName = "voice-ai-private"
 
 
@@ -1969,7 +1974,12 @@ def use_rvc_infer(raw_input):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
     input = raw_input["arguments"]
-    (model, index, inputS3Key) = input["model"], input["index"], input["inputS3Key"]
+    (model, index, inputS3Key, userId) = (
+        input["model"],
+        input["index"],
+        input["inputS3Key"],
+        input["userId"],
+    )
     s3.download_file(bucketName, inputS3Key, temp_filepath)
 
     # Save the file to a temporary location
@@ -1998,12 +2008,15 @@ def use_rvc_infer(raw_input):
         sf.write("output.wav", audio_opt, tgt_sr, format="WAV")
 
         with open("output.wav", "rb") as file:
-            pthKey = "output/test/test.wav"
+            now = datetime.datetime.now()
+            timestamp = now.strftime("%Y%m%d_%H%M%S")
+            pthKey = f"output/{userId}/output_{timestamp}.wav"
             s3.upload_fileobj(file, bucketName, pthKey)
-            os.remove("output.wav")
-            return {
-                "output_url": f"https://{bucketName}.s3.amazonaws.com/{pthKey}",
-            }
+
+        os.remove("output.wav")
+        return {
+            "output_url": f"https://{bucketName}.s3.amazonaws.com/{pthKey}",
+        }
 
     return "Something went wrong"
 
