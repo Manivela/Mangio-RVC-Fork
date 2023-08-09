@@ -1965,10 +1965,10 @@ s3 = boto3.client("s3")
 bucketName = "voice-ai-private"
 
 
-def use_rvc_infer(input):
+def use_rvc_infer(raw_input):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
-
+    input = raw_input["arguments"]
     (model, index, inputS3Key) = input["model"], input["index"], input["inputS3Key"]
     s3.download_file(bucketName, inputS3Key, temp_filepath)
 
