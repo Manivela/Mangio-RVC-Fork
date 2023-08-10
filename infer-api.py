@@ -1974,13 +1974,32 @@ def use_rvc_infer(raw_input):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
     input = raw_input["arguments"]
-    (model, index, inputS3Key, userId) = (
+    (model, inputS3Key, userId) = (
         input["model"],
-        input["index"],
         input["inputS3Key"],
         input["userId"],
     )
     s3.download_file(bucketName, inputS3Key, temp_filepath)
+
+    # e.g. model: cagri.pth, 123.pth, userId.pth
+    # e.g. model_name: cagri, 123, userId
+    # e.g. index_name: ./logs/cagri/cagri.index
+    model_name = model.split(".")[0]
+    index_name = f"./logs/{model_name}/{model_name}.index"
+
+    # check if model exists in weights/ folder
+    if not os.path.exists(f"weights/{model}"):
+        print("Downloading model from s3...")
+        # download model and index from s3
+        s3.download_file(bucketName, f"models/{userId}/{model}", f"weights/{model}")
+
+        os.makedirs(f"logs/{userId}", exist_ok=True)
+
+        s3.download_file(
+            bucketName,
+            f"models/{userId}/{model_name}.index",
+            f"logs/{userId}/{model_name}.index",
+        )
 
     # Save the file to a temporary location
     get_vc(model, 0.33, 0.33)
@@ -1993,7 +2012,7 @@ def use_rvc_infer(raw_input):
         None,
         "rmvpe",
         "",
-        index or "",
+        index_name,
         0.75,
         3,
         0,
@@ -2035,27 +2054,26 @@ def use_rvc_train(raw_input):
         input["inputS3Key"],
         input["userId"],
     )
-    model_name = userId
 
-    temp_dataset_dir = "datasets/" + model_name
+    temp_dataset_dir = "datasets/" + userId
     temp_filepath = temp_dataset_dir + "/temp_audiofile.wav"
 
     os.makedirs(temp_dataset_dir, exist_ok=True)
     s3.download_file(bucketName, inputS3Key, temp_filepath)
 
-    generator = preprocess_dataset(temp_dataset_dir, model_name, "40k", 12)
+    generator = preprocess_dataset(temp_dataset_dir, userId, "40k", 12)
     execute_generator_function(generator)
 
-    generator = extract_f0_feature("0", 8, "rmvpe", True, model_name, "v2", 64)
+    generator = extract_f0_feature("0", 8, "rmvpe", True, userId, "v2", 64)
     execute_generator_function(generator)
 
     click_train(
-        model_name,
+        userId,
         "40k",
         True,
         0,
-        70,
-        70,
+        270,
+        270,
         15,
         False,
         "pretrained_v2/f0G40k.pth",
@@ -2066,25 +2084,32 @@ def use_rvc_train(raw_input):
         "v2",
     )
 
-    generator = train_index(model_name, "v2")
+    generator = train_index(userId, "v2")
     execute_generator_function(generator)
+
     # file that starts with "added" and is an .index file
     find_added_index = lambda x: x.startswith("added") and x.endswith(".index")
-    index_file = list(filter(find_added_index, os.listdir(f"./logs/{model_name}")))[0]
+    index_name = list(filter(find_added_index, os.listdir(f"./logs/{userId}")))[0]
 
-    with open(f"./weights/{model_name}.pth", "rb") as pth, open(
-        f"./logs/{model_name}/{index_file}", "rb"
+    with open(f"./weights/{userId}.pth", "rb") as pth, open(
+        f"./logs/{userId}/{index_name}", "rb"
     ) as index:
-        pthKey = f"models/{userId}/{model_name}.pth"
+        pthKey = f"models/{userId}/{userId}.pth"
         s3.upload_fileobj(pth, bucketName, pthKey)
-        indexKey = f"models/{userId}/{model_name}.index"
+        indexKey = f"models/{userId}/{userId}.index"
         s3.upload_fileobj(index, bucketName, indexKey)
 
     os.remove(temp_filepath)
     shutil.rmtree(temp_dataset_dir)
 
-    os.remove(f"./weights/{model_name}.pth")
-    shutil.rmtree(f"./logs/{model_name}")
+    # rename f"./logs/{userId}/{index_name}" to f"./logs/{userId}/{userId}.index"
+    os.rename(
+        f"./logs/{userId}/{index_name}",
+        f"./logs/{userId}/{userId}.index",
+    )
+
+    # os.remove(f"./weights/{userId}.pth")
+    # shutil.rmtree(f"./logs/{userId}")
 
     return {
         "model_url": f"https://{bucketName}.s3.amazonaws.com/{pthKey}",
