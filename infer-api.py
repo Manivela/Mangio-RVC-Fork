@@ -2029,6 +2029,8 @@ def use_rvc_train(raw_input):
     # train the model
     # save the model to s3
     # return the model url
+
+    input = raw_input["arguments"]
     (inputS3Key, userId) = (
         input["inputS3Key"],
         input["userId"],
