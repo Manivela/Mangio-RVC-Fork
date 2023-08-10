@@ -2043,15 +2043,18 @@ def use_rvc_train(raw_input):
     os.makedirs(temp_dataset_dir, exist_ok=True)
     s3.download_file(bucketName, inputS3Key, temp_filepath)
 
-    preprocess_dataset(f"./{temp_filepath}", model_name, "40k", 12)
+    generator = preprocess_dataset(temp_dataset_dir, model_name, "40k", 12)
+    execute_generator_function(generator)
 
-    extract_f0_feature("0", 8, "rmvpe", True, model_name, "v2", 64)
+    generator = extract_f0_feature("0", 8, "rmvpe", True, model_name, "v2", 64)
+    execute_generator_function(generator)
+
     click_train(
         model_name,
         "40k",
         True,
         0,
-        5,
+        70,
         70,
         15,
         False,
@@ -2062,10 +2065,15 @@ def use_rvc_train(raw_input):
         False,
         "v2",
     )
-    train_index(model_name, "v2")
+
+    generator = train_index(model_name, "v2")
+    execute_generator_function(generator)
+    # file that starts with "added" and is an .index file
+    find_added_index = lambda x: x.startswith("added") and x.endswith(".index")
+    index_file = list(filter(find_added_index, os.listdir(f"./logs/{model_name}")))[0]
 
     with open(f"./weights/{model_name}.pth", "rb") as pth, open(
-        f"./logs/{model_name}/added_IVF262_Flat_nprobe_1_{model_name}_v2.index", "rb"
+        f"./logs/{model_name}/{index_file}", "rb"
     ) as index:
         pthKey = f"models/{userId}/{model_name}.pth"
         s3.upload_fileobj(pth, bucketName, pthKey)
