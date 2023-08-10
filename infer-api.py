@@ -2021,6 +2021,67 @@ def use_rvc_infer(raw_input):
     return "Something went wrong"
 
 
+def use_rvc_train(raw_input):
+    # create a new folder for the user
+    # download the dataset from s3
+    # preprocess the dataset
+    # extract features
+    # train the model
+    # save the model to s3
+    # return the model url
+    (inputS3Key, userId) = (
+        input["inputS3Key"],
+        input["userId"],
+    )
+    model_name = userId
+
+    temp_dataset_dir = "datasets/" + model_name
+    temp_filepath = temp_dataset_dir + "/temp_audiofile.wav"
+
+    os.makedirs(temp_dataset_dir, exist_ok=True)
+    s3.download_file(bucketName, inputS3Key, temp_filepath)
+
+    preprocess_dataset(f"./{temp_filepath}", model_name, "40k", 12)
+
+    extract_f0_feature("0", 8, "rmvpe", True, model_name, "v2", 64)
+    click_train(
+        model_name,
+        "40k",
+        True,
+        0,
+        5,
+        70,
+        15,
+        False,
+        "pretrained_v2/f0G40k.pth",
+        "pretrained_v2/f0D40k.pth",
+        "0",
+        True,
+        False,
+        "v2",
+    )
+    train_index(model_name, "v2")
+
+    with open(f"./weights/{model_name}.pth", "rb") as pth, open(
+        f"./logs/{model_name}/added_IVF262_Flat_nprobe_1_{model_name}_v2.index", "rb"
+    ) as index:
+        pthKey = f"models/{userId}/{model_name}.pth"
+        s3.upload_fileobj(pth, bucketName, pthKey)
+        indexKey = f"models/{userId}/{model_name}.index"
+        s3.upload_fileobj(index, bucketName, indexKey)
+
+    os.remove(temp_filepath)
+    shutil.rmtree(temp_dataset_dir)
+
+    os.remove(f"./weights/{model_name}.pth")
+    shutil.rmtree(f"./logs/{model_name}")
+
+    return {
+        "model_url": f"https://{bucketName}.s3.amazonaws.com/{pthKey}",
+        "index_url": f"https://{bucketName}.s3.amazonaws.com/{indexKey}",
+    }
+
+
 # home route that returns below text when root url is accessed
 @app.route("/infer", methods=["POST"])
 def infer():
@@ -2029,45 +2090,18 @@ def infer():
 
 @app.route("/train", methods=["POST"])
 def train():
-    print(request)
-
-    # preprocess_dataset(
-    #     "C:\\Users\\Yunus\\Repos\\Mangio-RVC-Fork\\datasets\\ahmet", "test", "40k", 8
-    # )
-    # extract_f0_feature("0", 8, "rmvpe", True, "test", "v2", 64)
-    # click_train(
-    #     "test",
-    #     "40k",
-    #     True,
-    #     0,
-    #     5,
-    #     6,
-    #     5,
-    #     False,
-    #     "pretrained_v2/f0G40k.pth",
-    #     "pretrained_v2/f0D40k.pth",
-    #     "0",
-    #     True,
-    #     False,
-    #     "v2",
-    # )
-    # train_index('test', 'v2')
-    with open("./weights/test.pth", "rb") as pth, open(
-        "./logs/test/added_IVF262_Flat_nprobe_1_test_v2.index", "rb"
-    ) as index:
-        pthKey = "models/test/test.pth"
-        s3.upload_fileobj(pth, bucketName, pthKey)
-        indexKey = "models/test/test.index"
-        s3.upload_fileobj(index, bucketName, indexKey)
-
-        return {
-            "model_url": f"https://{bucketName}.s3.amazonaws.com/{pthKey}",
-            "index_url": f"https://{bucketName}.s3.amazonaws.com/{indexKey}",
-        }
+    return use_rvc_train(request.json["input"])
 
 
 def runpod_handler(event):
-    return use_rvc_infer(event["input"])
+    input = event["input"]
+
+    if input["type"] == "INFER":
+        return use_rvc_infer(event["input"])
+    elif input["type"] == "TRAIN":
+        return use_rvc_train(event["input"])
+    else:
+        return "Please provide a valid type: INFER or TRAIN"
 
 
 if __name__ == "__main__":
