@@ -2050,9 +2050,10 @@ def use_rvc_train(raw_input):
     # return the model url
 
     input = raw_input["arguments"]
-    (inputS3Key, userId) = (
+    (inputS3Key, userId, modelName) = (
         input["inputS3Key"],
         input["userId"],
+        input["modelName"],
     )
 
     temp_dataset_dir = "datasets/" + userId
@@ -2094,9 +2095,9 @@ def use_rvc_train(raw_input):
     with open(f"./weights/{userId}.pth", "rb") as pth, open(
         f"./logs/{userId}/{index_name}", "rb"
     ) as index:
-        pthKey = f"models/{userId}/{userId}.pth"
+        pthKey = f"models/{userId}/{modelName}.pth"
         s3.upload_fileobj(pth, bucketName, pthKey)
-        indexKey = f"models/{userId}/{userId}.index"
+        indexKey = f"models/{userId}/{modelName}.index"
         s3.upload_fileobj(index, bucketName, indexKey)
 
     os.remove(temp_filepath)
@@ -2105,7 +2106,7 @@ def use_rvc_train(raw_input):
     # rename f"./logs/{userId}/{index_name}" to f"./logs/{userId}/{userId}.index"
     os.rename(
         f"./logs/{userId}/{index_name}",
-        f"./logs/{userId}/{userId}.index",
+        f"./logs/{userId}/{modelName}.index",
     )
 
     # os.remove(f"./weights/{userId}.pth")
