@@ -2106,7 +2106,7 @@ def use_rvc_train(raw_input):
     # rename f"./logs/{userId}/{index_name}" to f"./logs/{userId}/{userId}.index"
     os.rename(
         f"./logs/{userId}/{index_name}",
-        f"./logs/{userId}/{modelName}.index",
+        f"./logs/{userId}/{userId}.index",
     )
 
     # os.remove(f"./weights/{userId}.pth")
