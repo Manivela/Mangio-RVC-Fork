@@ -1979,6 +1979,11 @@ def use_rvc_infer(raw_input, isSongInference=False):
         input["inputS3Key"],
         input["userId"],
     )
+
+    transpose_float = float(input.get("transposeFloat", 0.0))
+    channel_count = int(input.get("channelCount", 1))
+    sample_rate = int(input.get("sampleRate", 22050))
+
     s3.download_file(bucketName, inputS3Key, temp_filepath)
 
     # e.g. model: cagri.pth, 123.pth, userId.pth
@@ -2001,7 +2006,9 @@ def use_rvc_infer(raw_input, isSongInference=False):
             f"logs/{userId}/{model_name}.index",
         )
 
-    vocal_seperation_folder_path = f"vocal_seperation/{userId}"
+    # get current absolute path
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    vocal_seperation_folder_path = f"{current_path}/vocal_seperation/{userId}"
     seperated_vocal_folder_path = f"{vocal_seperation_folder_path}/out_vocal"
     seperated_instrument_folder_path = f"{vocal_seperation_folder_path}/out_inst"
     seperated_vocal_file_path = None
@@ -2010,9 +2017,13 @@ def use_rvc_infer(raw_input, isSongInference=False):
     if isSongInference:
         # move temp_filepath file to test_audios folder
         os.makedirs(vocal_seperation_folder_path, exist_ok=True)
-        shutil.move(temp_filepath, vocal_seperation_folder_path)
 
-        uvr(
+        try:
+            shutil.move(temp_filepath, vocal_seperation_folder_path)
+        except:
+            print("skipped copying file")
+
+        generator = uvr(
             "HP5_only_main_vocal",
             vocal_seperation_folder_path,
             seperated_vocal_folder_path,
@@ -2021,6 +2032,7 @@ def use_rvc_infer(raw_input, isSongInference=False):
             10,
             "wav",
         )
+        execute_generator_function(generator)
 
         find_wav_file = lambda x: x.endswith(".wav")
 
@@ -2032,7 +2044,11 @@ def use_rvc_infer(raw_input, isSongInference=False):
             filter(find_wav_file, os.listdir(seperated_instrument_folder_path))
         )[0]
 
-    inferred_voice = seperated_vocal_file_path if isSongInference else temp_filepath
+    inferred_voice = (
+        f"{seperated_vocal_folder_path}/{seperated_vocal_file_path}"
+        if isSongInference
+        else temp_filepath
+    )
 
     # Save the file to a temporary location
     get_vc(model, 0.33, 0.33)
@@ -2041,7 +2057,7 @@ def use_rvc_infer(raw_input, isSongInference=False):
         0,
         "",
         inferred_voice,
-        0.0,
+        transpose_float,
         None,
         "rmvpe",
         "",
@@ -2054,11 +2070,6 @@ def use_rvc_infer(raw_input, isSongInference=False):
         120,
     )
 
-    # if isSongInference:
-    #     shutil.rmtree(vocal_seperation_folder_path)
-    # else:
-    #     os.remove(inferred_voice)
-
     if "Success" in info:
         tgt_sr, audio_opt = opt
         sf.write("output.wav", audio_opt, tgt_sr, format="WAV")
@@ -2070,13 +2081,25 @@ def use_rvc_infer(raw_input, isSongInference=False):
         if isSongInference:
             from pydub import AudioSegment
 
-            instrument = AudioSegment.from_wav(seperated_instrument_file_path)
+            instrument = AudioSegment.from_wav(
+                f"{seperated_instrument_folder_path}/{seperated_instrument_file_path}"
+            )
             output = AudioSegment.from_wav("output.wav")
             mixed = output.overlay(instrument)
+
+            # this wav is too big make it a bit smaller
+            mixed = mixed.set_frame_rate(sample_rate)
+            mixed = mixed.set_channels(channel_count)
+
             mixed.export("output.wav", format="wav")
 
         with open("output.wav", "rb") as file:
             s3.upload_fileobj(file, bucketName, pthKey)
+
+        if isSongInference:
+            shutil.rmtree(vocal_seperation_folder_path)
+        else:
+            os.remove(inferred_voice)
 
         os.remove("output.wav")
         return {
@@ -2102,6 +2125,8 @@ def use_rvc_train(raw_input):
         input["modelName"],
     )
 
+    epoch_count = int(input.get("epochCount", 270))
+
     temp_dataset_dir = "datasets/" + userId
     temp_filepath = temp_dataset_dir + "/temp_audiofile.wav"
 
@@ -2119,8 +2144,8 @@ def use_rvc_train(raw_input):
         "40k",
         True,
         0,
-        270,
-        270,
+        epoch_count,
+        epoch_count,
         15,
         False,
         "pretrained_v2/f0G40k.pth",
