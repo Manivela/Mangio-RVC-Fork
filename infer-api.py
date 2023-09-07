@@ -1970,7 +1970,7 @@ s3 = boto3.client(
 bucketName = "voice-ai-private"
 
 
-def use_rvc_infer(raw_input):
+def use_rvc_infer(raw_input, isSongInference=False):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
     input = raw_input["arguments"]
@@ -2001,13 +2001,46 @@ def use_rvc_infer(raw_input):
             f"logs/{userId}/{model_name}.index",
         )
 
+    vocal_seperation_folder_path = f"vocal_seperation/{userId}"
+    seperated_vocal_folder_path = f"{vocal_seperation_folder_path}/out_vocal"
+    seperated_instrument_folder_path = f"{vocal_seperation_folder_path}/out_inst"
+    seperated_vocal_file_path = None
+    seperated_instrument_file_path = None
+
+    if isSongInference:
+        # move temp_filepath file to test_audios folder
+        os.makedirs(vocal_seperation_folder_path, exist_ok=True)
+        shutil.move(temp_filepath, vocal_seperation_folder_path)
+
+        uvr(
+            "HP5_only_main_vocal",
+            vocal_seperation_folder_path,
+            seperated_vocal_folder_path,
+            None,
+            seperated_instrument_folder_path,
+            10,
+            "wav",
+        )
+
+        find_wav_file = lambda x: x.endswith(".wav")
+
+        seperated_vocal_file_path = list(
+            filter(find_wav_file, os.listdir(seperated_vocal_folder_path))
+        )[0]
+
+        seperated_instrument_file_path = list(
+            filter(find_wav_file, os.listdir(seperated_instrument_folder_path))
+        )[0]
+
+    inferred_voice = seperated_vocal_file_path if isSongInference else temp_filepath
+
     # Save the file to a temporary location
     get_vc(model, 0.33, 0.33)
 
     info, opt = vc_single(
         0,
         "",
-        temp_filepath,
+        inferred_voice,
         0.0,
         None,
         "rmvpe",
@@ -2020,16 +2053,29 @@ def use_rvc_infer(raw_input):
         0.33,
         120,
     )
-    os.remove(temp_filepath)
+
+    # if isSongInference:
+    #     shutil.rmtree(vocal_seperation_folder_path)
+    # else:
+    #     os.remove(inferred_voice)
 
     if "Success" in info:
         tgt_sr, audio_opt = opt
         sf.write("output.wav", audio_opt, tgt_sr, format="WAV")
 
+        now = datetime.datetime.now()
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        pthKey = f"output/{userId}/output_{timestamp}.wav"
+
+        if isSongInference:
+            from pydub import AudioSegment
+
+            instrument = AudioSegment.from_wav(seperated_instrument_file_path)
+            output = AudioSegment.from_wav("output.wav")
+            mixed = output.overlay(instrument)
+            mixed.export("output.wav", format="wav")
+
         with open("output.wav", "rb") as file:
-            now = datetime.datetime.now()
-            timestamp = now.strftime("%Y%m%d_%H%M%S")
-            pthKey = f"output/{userId}/output_{timestamp}.wav"
             s3.upload_fileobj(file, bucketName, pthKey)
 
         os.remove("output.wav")
@@ -2127,6 +2173,11 @@ def infer():
 @app.route("/train", methods=["POST"])
 def train():
     return use_rvc_train(request.json["input"])
+
+
+@app.route("/infer-song", methods=["POST"])
+def infer_song():
+    return use_rvc_infer(request.json["input"], isSongInference=True)
 
 
 def runpod_handler(event):
