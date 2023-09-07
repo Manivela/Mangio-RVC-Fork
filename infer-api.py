@@ -2210,10 +2210,12 @@ def runpod_handler(event):
 
     if input["type"] == "INFER":
         return use_rvc_infer(event["input"])
+    elif input["type"] == "INFER_SONG":
+        return use_rvc_infer(event["input"], isSongInference=True)
     elif input["type"] == "TRAIN":
         return use_rvc_train(event["input"])
     else:
-        return "Please provide a valid type: INFER or TRAIN"
+        return "Please provide a valid type: INFER, INFER_SONG or TRAIN"
 
 
 if __name__ == "__main__":
