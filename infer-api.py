@@ -2016,6 +2016,7 @@ def verify_config(config):
 def download_model(
     model,
     model_name,
+    new_model_name,
     userId,
     is_huggingface,
 ):
@@ -2023,8 +2024,6 @@ def download_model(
     # e.g. model_name: cagri, 123, userId
     # ONLY USE 'MODEL' VARIABLE IN HF CODES
     index_name = f"./logs/{model_name}/{model_name}.index"
-    # remove /s from model_name
-    new_model_name = model_name.replace("/", "_")
 
     if is_huggingface:
         config_path = huggingface_hub.hf_hub_download(
@@ -2071,7 +2070,7 @@ def download_model(
             f"logs/{userId}/{model_name}.index",
         )
 
-    return index_name, new_model_name
+    return index_name
 
 
 def use_rvc_infer(raw_input, isSongInference=False):
@@ -2096,11 +2095,15 @@ def use_rvc_infer(raw_input, isSongInference=False):
     # e.g. index_name: ./logs/cagri/cagri.index
     model_name = model.split(".")[0]
     index_name = f"./logs/{model_name}/{model_name}.index"
+    new_model_name = model.replace("/", "_")
+    search_path = (
+        f"weights/{new_model_name}.pth" if is_huggingface else f"weights/{model}"
+    )
 
     # check if model exists in weights/ folder
-    if not os.path.exists(f"weights/{model}"):
-        index_name, new_model_name = download_model(
-            model, model_name, userId, is_huggingface
+    if not os.path.exists(search_path):
+        index_name = download_model(
+            model, model_name, new_model_name, userId, is_huggingface
         )
 
     if is_huggingface:
