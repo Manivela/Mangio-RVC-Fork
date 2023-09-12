@@ -2043,8 +2043,10 @@ def download_model(
             filename=config["components"]["pth"],
             repo_type="model",
         )
-        # move to f"weights/{model}.pth"
-        shutil.move(pth_path, f"weights/{new_model_name}.pth")
+
+        # move file to f"weights/{new_model_name}.pth"
+
+        shutil.move(pth_path, f"./weights/{new_model_name}.pth")
 
         index_path = huggingface_hub.hf_hub_download(
             repo_id=model,
@@ -2054,7 +2056,7 @@ def download_model(
         index_name = f"./logs/{new_model_name}/{new_model_name}.index"
 
         # move to f"weights/{model}.pth"
-        os.makedirs(f"logs/{new_model_name}", exist_ok=True)
+        os.makedirs(f"./logs/{new_model_name}", exist_ok=True)
         shutil.move(index_path, index_name)
 
     else:
