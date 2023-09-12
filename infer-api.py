@@ -46,6 +46,11 @@ from train.process_ckpt import change_info, extract_small_model, merge, show_inf
 from vc_infer_pipeline import VC
 from sklearn.cluster import MiniBatchKMeans
 
+from transformers import AutoConfig
+from transformers.file_utils import get_from_cache
+import boto3
+from botocore.exceptions import NoCredentialsError
+
 tmp = os.path.join(now_dir, "TEMP")
 shutil.rmtree(tmp, ignore_errors=True)
 shutil.rmtree("%s/runtime/Lib/site-packages/infer_pack" % (now_dir), ignore_errors=True)
@@ -60,6 +65,47 @@ warnings.filterwarnings("ignore")
 torch.manual_seed(114514)
 
 import sqlite3
+
+
+def get_model(model_name, use_s3=False):
+    # Hugging Face model hub url
+    model_hub_url = f"https://huggingface.co/{model_name}/resolve/main/config.json"
+
+    # Use S3 flag
+    if use_s3:
+        # Specify your S3 bucket and object key
+        s3_bucket = "your-s3-bucket"
+        s3_object_key = "path/to/your/model"
+
+        # Check if the model exists locally, if not, download from S3
+        if not os.path.exists(model_name):
+            try:
+                s3 = boto3.client("s3")
+                s3.download_file(s3_bucket, s3_object_key, model_name)
+            except NoCredentialsError:
+                print("No AWS credentials found. Please configure your credentials.")
+                return None
+    else:
+        # Download model config
+        config = AutoConfig.from_pretrained(model_hub_url)
+        config_path = get_from_cache(config.url_or_path)
+
+        with open(config_path, "r") as f:
+            config_data = json.load(f)
+
+        # Download model files
+        pth_path = get_from_cache(config_data["components"]["pth"])
+        index_path = get_from_cache(config_data["components"]["index"])
+
+    return {"config": config_data, "pth_path": pth_path, "index_path": index_path}
+
+
+def use_rvc_infer(model_name, use_s3=False):
+    # Get Model
+    model_info = get_model(model_name, use_s3)
+
+    if model_info is None:
+        return "Error downloading model"
 
 
 def clear_sql(signal, frame):
