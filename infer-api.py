@@ -46,11 +46,6 @@ from train.process_ckpt import change_info, extract_small_model, merge, show_inf
 from vc_infer_pipeline import VC
 from sklearn.cluster import MiniBatchKMeans
 
-from transformers import AutoConfig
-from transformers.file_utils import get_from_cache
-import boto3
-from botocore.exceptions import NoCredentialsError
-
 tmp = os.path.join(now_dir, "TEMP")
 shutil.rmtree(tmp, ignore_errors=True)
 shutil.rmtree("%s/runtime/Lib/site-packages/infer_pack" % (now_dir), ignore_errors=True)
@@ -65,47 +60,6 @@ warnings.filterwarnings("ignore")
 torch.manual_seed(114514)
 
 import sqlite3
-
-
-def get_model(model_name, use_s3=False):
-    # Hugging Face model hub url
-    model_hub_url = f"https://huggingface.co/{model_name}/resolve/main/config.json"
-
-    # Use S3 flag
-    if use_s3:
-        # Specify your S3 bucket and object key
-        s3_bucket = "your-s3-bucket"
-        s3_object_key = "path/to/your/model"
-
-        # Check if the model exists locally, if not, download from S3
-        if not os.path.exists(model_name):
-            try:
-                s3 = boto3.client("s3")
-                s3.download_file(s3_bucket, s3_object_key, model_name)
-            except NoCredentialsError:
-                print("No AWS credentials found. Please configure your credentials.")
-                return None
-    else:
-        # Download model config
-        config = AutoConfig.from_pretrained(model_hub_url)
-        config_path = get_from_cache(config.url_or_path)
-
-        with open(config_path, "r") as f:
-            config_data = json.load(f)
-
-        # Download model files
-        pth_path = get_from_cache(config_data["components"]["pth"])
-        index_path = get_from_cache(config_data["components"]["index"])
-
-    return {"config": config_data, "pth_path": pth_path, "index_path": index_path}
-
-
-def use_rvc_infer(model_name, use_s3=False):
-    # Get Model
-    model_info = get_model(model_name, use_s3)
-
-    if model_info is None:
-        return "Error downloading model"
 
 
 def clear_sql(signal, frame):
@@ -2015,6 +1969,110 @@ s3 = boto3.client(
 
 bucketName = "voice-ai-private"
 
+import huggingface_hub
+
+hf_token = os.environ.get("HF_TOKEN", None)
+
+if hf_token is not None:
+    huggingface_hub.login(token=hf_token)
+else:
+    print("HuggingFace token not found. Please set HF_TOKEN environment variable")
+
+
+def verify_config(config):
+    # existance
+    if "arch_type" not in config:
+        return "arch_type not found"
+
+    if "arch_version" not in config:
+        return "arch_version not found"
+
+    if "components" not in config:
+        return "components not found"
+
+    # type
+    if not isinstance(config["arch_type"], str):
+        return "arch_type must be str"
+
+    if not isinstance(config["arch_version"], str):
+        return "arch_version must be str"
+
+    if not isinstance(config["components"], dict):
+        return "components must be dict"
+
+    # arch_type
+    if config["arch_type"] != "rvc":
+        return "arch_type must be 'rvc'"
+
+    if "pth" not in config["components"]:
+        return "components['pth'] not found"
+
+    if "index" not in config["components"]:
+        return "components['index'] not found"
+
+    return None
+
+
+def download_model(
+    model,
+    model_name,
+    userId,
+    is_huggingface,
+):
+    # e.g. model: cagri.pth, 123.pth, userId.pth
+    # e.g. model_name: cagri, 123, userId
+    # ONLY USE 'MODEL' VARIABLE IN HF CODES
+    index_name = f"./logs/{model_name}/{model_name}.index"
+    # remove /s from model_name
+    new_model_name = model_name.replace("/", "_")
+
+    if is_huggingface:
+        config_path = huggingface_hub.hf_hub_download(
+            repo_id=model, filename="config.json", repo_type="model"
+        )
+
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        check = verify_config(config)
+
+        if check is not None:
+            return check
+
+        pth_path = huggingface_hub.hf_hub_download(
+            repo_id=model,
+            filename=config["components"]["pth"],
+            repo_type="model",
+        )
+        # move to f"weights/{model}.pth"
+        shutil.move(pth_path, f"weights/{new_model_name}.pth")
+
+        index_path = huggingface_hub.hf_hub_download(
+            repo_id=model,
+            filename=config["components"]["index"],
+            repo_type="model",
+        )
+        index_name = f"./logs/{new_model_name}/{new_model_name}.index"
+
+        # move to f"weights/{model}.pth"
+        os.makedirs(f"logs/{new_model_name}", exist_ok=True)
+        shutil.move(index_path, index_name)
+
+    else:
+        print("Downloading model from s3...")
+        # download model and index from s3
+        s3.download_file(bucketName, f"models/{userId}/{model}", f"weights/{model}")
+
+        os.makedirs(f"logs/{userId}", exist_ok=True)
+
+        s3.download_file(
+            bucketName,
+            f"models/{userId}/{model_name}.index",
+            f"logs/{userId}/{model_name}.index",
+        )
+
+    return index_name, new_model_name
+
 
 def use_rvc_infer(raw_input, isSongInference=False):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
@@ -2029,6 +2087,7 @@ def use_rvc_infer(raw_input, isSongInference=False):
     transpose_float = float(input.get("transposeFloat", 0.0))
     channel_count = int(input.get("channelCount", 1))
     sample_rate = int(input.get("sampleRate", 22050))
+    is_huggingface = input.get("isHuggingFace", False)
 
     s3.download_file(bucketName, inputS3Key, temp_filepath)
 
@@ -2040,17 +2099,12 @@ def use_rvc_infer(raw_input, isSongInference=False):
 
     # check if model exists in weights/ folder
     if not os.path.exists(f"weights/{model}"):
-        print("Downloading model from s3...")
-        # download model and index from s3
-        s3.download_file(bucketName, f"models/{userId}/{model}", f"weights/{model}")
-
-        os.makedirs(f"logs/{userId}", exist_ok=True)
-
-        s3.download_file(
-            bucketName,
-            f"models/{userId}/{model_name}.index",
-            f"logs/{userId}/{model_name}.index",
+        index_name, new_model_name = download_model(
+            model, model_name, userId, is_huggingface
         )
+
+    if is_huggingface:
+        model = f"{new_model_name}.pth"
 
     # get current absolute path
     current_path = os.path.dirname(os.path.abspath(__file__))

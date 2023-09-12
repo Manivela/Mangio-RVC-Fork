@@ -48,3 +48,4 @@ fastapi==0.88
 stftpitchshift==1.5.1
 flask
 runpod
+huggingface_hub
