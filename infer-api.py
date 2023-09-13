@@ -2074,22 +2074,38 @@ def download_model(
     return index_name
 
 
-def use_rvc_infer(raw_input, isSongInference=False):
+async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
     input = raw_input["arguments"]
-    (model, inputS3Key, userId) = (
+    (model, userId) = (
         input["model"],
-        input["inputS3Key"],
         input["userId"],
     )
+    inputS3Key = input.get("inputS3Key", "")
 
     transpose_float = float(input.get("transposeFloat", 0.0))
     channel_count = int(input.get("channelCount", 1))
     sample_rate = int(input.get("sampleRate", 22050))
     is_huggingface = input.get("isHuggingFace", False)
 
-    s3.download_file(bucketName, inputS3Key, temp_filepath)
+    ttsParams = input.get("ttsParams", {})
+    text = ttsParams.get("ttsText", "")
+    voice = ttsParams.get("ttsVoiceType", "tr-TR-EmelNeural")
+    pitch = ttsParams.get("ttsPitch", 0)
+    rate = ttsParams.get("ttsRate", 0)
+    volume = ttsParams.get("ttsVolume", 0)
+
+    if isTTS:
+        import edge_tts
+
+        communicate = edge_tts.Communicate(
+            text, voice, rate=f"+{rate}%", volume=f"+{volume}%", pitch=f"+{pitch}Hz"
+        )
+        await communicate.save(temp_filepath)
+
+    else:
+        s3.download_file(bucketName, inputS3Key, temp_filepath)
 
     # e.g. model: cagri.pth, 123.pth, userId.pth
     # e.g. model_name: cagri, 123, userId
@@ -2295,8 +2311,8 @@ def use_rvc_train(raw_input):
 
 # home route that returns below text when root url is accessed
 @app.route("/infer", methods=["POST"])
-def infer():
-    return use_rvc_infer(request.json["input"])
+async def infer():
+    return await use_rvc_infer(request.json["input"])
 
 
 @app.route("/train", methods=["POST"])
@@ -2305,17 +2321,19 @@ def train():
 
 
 @app.route("/infer-song", methods=["POST"])
-def infer_song():
-    return use_rvc_infer(request.json["input"], isSongInference=True)
+async def infer_song():
+    return await use_rvc_infer(request.json["input"], isSongInference=True)
 
 
-def runpod_handler(event):
+async def runpod_handler(event):
     input = event["input"]
 
     if input["type"] == "INFER":
-        return use_rvc_infer(event["input"])
+        return await use_rvc_infer(event["input"])
+    elif input("type") == "INFER_TTS":
+        return await use_rvc_infer(event["input"], isSongInference=False, isTTS=True)
     elif input["type"] == "INFER_SONG":
-        return use_rvc_infer(event["input"], isSongInference=True)
+        return await use_rvc_infer(event["input"], isSongInference=True)
     elif input["type"] == "TRAIN":
         return use_rvc_train(event["input"])
     else:
