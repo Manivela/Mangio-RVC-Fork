@@ -49,4 +49,4 @@ stftpitchshift==1.5.1
 flask
 runpod
 huggingface_hub
-edge-tts
+edge_tts

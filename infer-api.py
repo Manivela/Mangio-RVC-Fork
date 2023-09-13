@@ -2090,17 +2090,17 @@ async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
     is_huggingface = input.get("isHuggingFace", False)
 
     ttsParams = input.get("ttsParams", {})
-    text = ttsParams.get("ttsText", "")
-    voice = ttsParams.get("ttsVoiceType", "tr-TR-EmelNeural")
-    pitch = ttsParams.get("ttsPitch", 0)
-    rate = ttsParams.get("ttsRate", 0)
-    volume = ttsParams.get("ttsVolume", 0)
+    text = ttsParams.get("text", "")
+    voice = ttsParams.get("voiceType", "tr-TR-EmelNeural")
+    pitch = ttsParams.get("pitch", 0)
+    rate = ttsParams.get("rate", 0)
+    volume = ttsParams.get("volume", 0)
 
     if isTTS:
         import edge_tts
 
         communicate = edge_tts.Communicate(
-            text, voice, rate=f"+{rate}%", volume=f"+{volume}%", pitch=f"+{pitch}Hz"
+            text, voice, rate=f"+{rate}%", volume=f"+{volume}%"
         )
         await communicate.save(temp_filepath)
 
@@ -2323,6 +2323,11 @@ def train():
 @app.route("/infer-song", methods=["POST"])
 async def infer_song():
     return await use_rvc_infer(request.json["input"], isSongInference=True)
+
+
+@app.route("/infer-tts", methods=["POST"])
+async def infer_tts():
+    return await use_rvc_infer(request.json["input"], isTTS=True)
 
 
 async def runpod_handler(event):
