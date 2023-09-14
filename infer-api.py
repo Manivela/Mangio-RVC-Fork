@@ -2074,7 +2074,7 @@ def download_model(
     return index_name
 
 
-def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
+async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
     input = raw_input["arguments"]
@@ -2098,13 +2098,12 @@ def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
 
     if isTTS:
         import edge_tts
-        import asyncio
 
         communicate = edge_tts.Communicate(
             text, voice, rate=f"+{rate}%", volume=f"+{volume}%"
         )
 
-        asyncio.run(communicate.save(temp_filepath))
+        await communicate.save(temp_filepath)
         #
 
     else:
@@ -2333,25 +2332,28 @@ def infer_tts():
     return use_rvc_infer(request.json["input"], isTTS=True)
 
 
-def runpod_handler(event):
+async def runpod_handler(event):
     input = event["input"]
 
     if input["type"] == "INFER":
-        return use_rvc_infer(event["input"])
+        yield use_rvc_infer(event["input"])
     elif input("type") == "INFER_TTS":
-        return use_rvc_infer(event["input"], isSongInference=False, isTTS=True)
+        yield use_rvc_infer(event["input"], isSongInference=False, isTTS=True)
     elif input["type"] == "INFER_SONG":
-        return use_rvc_infer(event["input"], isSongInference=True)
+        yield use_rvc_infer(event["input"], isSongInference=True)
     elif input["type"] == "TRAIN":
-        return use_rvc_train(event["input"])
+        yield use_rvc_train(event["input"])
     else:
-        return "Please provide a valid type: INFER, INFER_SONG or TRAIN"
+        yield "Please provide a valid type: INFER, INFER_SONG or TRAIN"
 
 
 if __name__ == "__main__":
     if os.environ.get("RUNPOD_POD_ID", False):
         import runpod
 
-        runpod.serverless.start({"handler": runpod_handler})
+        runpod.serverless.start(
+            {"handler": runpod_handler, "return_aggregate_stream": True}
+        )
+
     else:
         app.run(debug=True, host="0.0.0.0", port=5000)

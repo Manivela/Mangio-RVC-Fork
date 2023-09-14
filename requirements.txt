@@ -50,4 +50,3 @@ flask
 runpod
 huggingface_hub
 edge_tts
-asyncio
