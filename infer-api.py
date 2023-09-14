@@ -2074,7 +2074,7 @@ def download_model(
     return index_name
 
 
-async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
+def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
     input = raw_input["arguments"]
@@ -2098,11 +2098,14 @@ async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
 
     if isTTS:
         import edge_tts
+        import asyncio
 
         communicate = edge_tts.Communicate(
             text, voice, rate=f"+{rate}%", volume=f"+{volume}%"
         )
-        await communicate.save(temp_filepath)
+
+        asyncio.run(communicate.save(temp_filepath))
+        #
 
     else:
         s3.download_file(bucketName, inputS3Key, temp_filepath)
@@ -2311,8 +2314,8 @@ def use_rvc_train(raw_input):
 
 # home route that returns below text when root url is accessed
 @app.route("/infer", methods=["POST"])
-async def infer():
-    return await use_rvc_infer(request.json["input"])
+def infer():
+    return use_rvc_infer(request.json["input"])
 
 
 @app.route("/train", methods=["POST"])
@@ -2321,24 +2324,24 @@ def train():
 
 
 @app.route("/infer-song", methods=["POST"])
-async def infer_song():
-    return await use_rvc_infer(request.json["input"], isSongInference=True)
+def infer_song():
+    return use_rvc_infer(request.json["input"], isSongInference=True)
 
 
 @app.route("/infer-tts", methods=["POST"])
-async def infer_tts():
-    return await use_rvc_infer(request.json["input"], isTTS=True)
+def infer_tts():
+    return use_rvc_infer(request.json["input"], isTTS=True)
 
 
-async def runpod_handler(event):
+def runpod_handler(event):
     input = event["input"]
 
     if input["type"] == "INFER":
-        return await use_rvc_infer(event["input"])
+        return use_rvc_infer(event["input"])
     elif input("type") == "INFER_TTS":
-        return await use_rvc_infer(event["input"], isSongInference=False, isTTS=True)
+        return use_rvc_infer(event["input"], isSongInference=False, isTTS=True)
     elif input["type"] == "INFER_SONG":
-        return await use_rvc_infer(event["input"], isSongInference=True)
+        return use_rvc_infer(event["input"], isSongInference=True)
     elif input["type"] == "TRAIN":
         return use_rvc_train(event["input"])
     else:
