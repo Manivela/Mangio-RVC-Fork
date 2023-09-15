@@ -2082,6 +2082,7 @@ async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
         input["model"],
         input["userId"],
     )
+
     inputS3Key = input.get("inputS3Key", "")
 
     transpose_float = float(input.get("transposeFloat", 0.0))
@@ -2104,8 +2105,6 @@ async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
         )
 
         await communicate.save(temp_filepath)
-        #
-
     else:
         s3.download_file(bucketName, inputS3Key, temp_filepath)
 
@@ -2154,6 +2153,7 @@ async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
             10,
             "wav",
         )
+
         execute_generator_function(generator)
 
         find_wav_file = lambda x: x.endswith(".wav")
@@ -2332,28 +2332,34 @@ def infer_tts():
     return use_rvc_infer(request.json["input"], isTTS=True)
 
 
-async def runpod_handler(event):
+def runpod_handler(event):
     input = event["input"]
-
+    called_fx = None
     if input["type"] == "INFER":
-        yield use_rvc_infer(event["input"])
-    elif input("type") == "INFER_TTS":
-        yield use_rvc_infer(event["input"], isSongInference=False, isTTS=True)
+        called_fx = use_rvc_infer(event["input"])
+    elif input["type"] == "INFER_TTS":
+        called_fx = use_rvc_infer(event["input"], isSongInference=False, isTTS=True)
     elif input["type"] == "INFER_SONG":
-        yield use_rvc_infer(event["input"], isSongInference=True)
+        called_fx = use_rvc_infer(event["input"], isSongInference=True)
     elif input["type"] == "TRAIN":
-        yield use_rvc_train(event["input"])
+        return use_rvc_train(event["input"])
     else:
-        yield "Please provide a valid type: INFER, INFER_SONG or TRAIN"
+        return "Please provide a valid type: INFER, INFER_SONG or TRAIN"
+
+    import nest_asyncio
+    import asyncio
+
+    nest_asyncio.apply()
+
+    return asyncio.run(called_fx)
 
 
 if __name__ == "__main__":
-    if os.environ.get("RUNPOD_POD_ID", False):
+    if os.environ.get("RUNPOD_POD_ID", True):
         import runpod
 
         runpod.serverless.start(
             {"handler": runpod_handler, "return_aggregate_stream": True}
         )
-
     else:
         app.run(debug=True, host="0.0.0.0", port=5000)

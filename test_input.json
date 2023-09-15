@@ -1,0 +1,13 @@
+{
+    "input": {
+        "arguments": {
+            "model": "adele.pth",
+            "userId":"123",
+            "ttsParams": {
+                "text": "Hello i am adele, test 1 2 3.",
+                "voiceType": "en-US-JennyNeural"
+            }
+        },
+        "type":"INFER_TTS"
+    }
+}
