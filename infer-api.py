@@ -2274,7 +2274,7 @@ def use_rvc_train(raw_input, isYoutubeLink=False):
 
     current_path = os.path.dirname(os.path.abspath(__file__))
     vocal_seperation_folder_path = f"{current_path}/youtube_vocal_seperation/{userId}"
-    seperated_vocal_folder_path = (f"{vocal_seperation_folder_path}/out_vocal",)
+    seperated_vocal_folder_path = f"{vocal_seperation_folder_path}/out_vocal"
 
     temp_dataset_dir = "datasets/" + userId
     temp_filepath = temp_dataset_dir + "/temp_audiofile.wav"
@@ -2310,15 +2310,15 @@ def use_rvc_train(raw_input, isYoutubeLink=False):
 
     click_train(
         userId,
-        "40k",
+        "48k",
         True,
         0,
         epoch_count,
         epoch_count,
         15,
         False,
-        "pretrained_v2/f0G40k.pth",
-        "pretrained_v2/f0D40k.pth",
+        "pretrained_v2/f0G48k.pth",
+        "pretrained_v2/f0D48k.pth",
         "0",
         True,
         False,
