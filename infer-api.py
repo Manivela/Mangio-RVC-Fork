@@ -45,6 +45,7 @@ from my_utils import load_audio
 from train.process_ckpt import change_info, extract_small_model, merge, show_info
 from vc_infer_pipeline import VC
 from sklearn.cluster import MiniBatchKMeans
+from pytube import YouTube
 
 tmp = os.path.join(now_dir, "TEMP")
 shutil.rmtree(tmp, ignore_errors=True)
@@ -1604,6 +1605,18 @@ def cli_split_command(com):
 def execute_generator_function(genObject):
     for _ in genObject:
         pass
+
+
+# download video from youtube
+def cli_download(link):
+    print("Mangio-RVC-Fork Download-CLI: Starting the download... %s" % link)
+    youtubeObject = YouTube(link)
+    youtubeObject = youtubeObject.streams.get_highest_resolution()
+    try:
+        youtubeObject.download()
+    except:
+        print("An error has occurred")
+    print("Download is completed successfully")
 
 
 def cli_infer(com):

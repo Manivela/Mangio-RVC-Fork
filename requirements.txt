@@ -51,3 +51,4 @@ runpod
 huggingface_hub
 edge_tts
 nest_asyncio
+pytube
