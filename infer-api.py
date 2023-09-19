@@ -1984,8 +1984,8 @@ import datetime
 
 s3 = boto3.client(
     "s3",
-    aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+    aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", None),
+    aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", None),
 )
 
 bucketName = "voice-ai-private"
@@ -2270,10 +2270,10 @@ def use_rvc_train(raw_input, isYoutubeLink=False):
         input["modelName"],
     )
     epoch_count = int(input.get("epochCount", 270))
+    link = input.get("youtubeLink", "")
 
     current_path = os.path.dirname(os.path.abspath(__file__))
     vocal_seperation_folder_path = f"{current_path}/youtube_vocal_seperation/{userId}"
-    link = input.get("youtubeLink", "")
     seperated_vocal_folder_path = (f"{vocal_seperation_folder_path}/out_vocal",)
 
     temp_dataset_dir = "datasets/" + userId
