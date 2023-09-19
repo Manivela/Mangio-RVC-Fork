@@ -1608,15 +1608,23 @@ def execute_generator_function(genObject):
 
 
 # download video from youtube
-def cli_download(link):
-    print("Mangio-RVC-Fork Download-CLI: Starting the download... %s" % link)
-    youtubeObject = YouTube(link)
-    youtubeObject = youtubeObject.streams.get_highest_resolution()
-    try:
-        youtubeObject.download()
-    except:
-        print("An error has occurred")
-    print("Download is completed successfully")
+def cli_download(link, destination):
+    yt = YouTube(link)
+    # extract only audio
+    video = yt.streams.filter(only_audio=True).first()
+
+    # check for destination to save file
+
+    # download the file
+    out_file = video.download(output_path=destination)
+
+    # save the file
+    base, ext = os.path.splitext(out_file)
+    new_file = base + ".mp3"
+    os.rename(out_file, new_file)
+
+    # result of success
+    print(yt.title + " has been successfully downloaded.")
 
 
 def cli_infer(com):
@@ -2110,6 +2118,8 @@ async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
     rate = ttsParams.get("rate", 0)
     volume = ttsParams.get("volume", 0)
 
+    link = input.get("link", "")
+
     if isTTS:
         import edge_tts
 
@@ -2244,7 +2254,7 @@ async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
     return "Something went wrong"
 
 
-def use_rvc_train(raw_input):
+def use_rvc_train(raw_input, isYoutubeLink=False):
     # create a new folder for the user
     # download the dataset from s3
     # preprocess the dataset
@@ -2259,16 +2269,40 @@ def use_rvc_train(raw_input):
         input["userId"],
         input["modelName"],
     )
-
     epoch_count = int(input.get("epochCount", 270))
+
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    vocal_seperation_folder_path = f"{current_path}/youtube_vocal_seperation/{userId}"
+    link = input.get("youtubeLink", "")
+    seperated_vocal_folder_path = (f"{vocal_seperation_folder_path}/out_vocal",)
 
     temp_dataset_dir = "datasets/" + userId
     temp_filepath = temp_dataset_dir + "/temp_audiofile.wav"
 
-    os.makedirs(temp_dataset_dir, exist_ok=True)
-    s3.download_file(bucketName, inputS3Key, temp_filepath)
+    if isYoutubeLink:
+        # move temp_filepath file to test_audios folder
+        os.makedirs(vocal_seperation_folder_path, exist_ok=True)
+        cli_download(link, vocal_seperation_folder_path)
 
-    generator = preprocess_dataset(temp_dataset_dir, userId, "40k", 12)
+        generator = uvr(
+            "HP5_only_main_vocal",
+            vocal_seperation_folder_path,
+            seperated_vocal_folder_path,
+            None,
+            f"{vocal_seperation_folder_path}/out_inst",
+            10,
+            "wav",
+        )
+        execute_generator_function(generator)
+
+    else:
+        os.makedirs(temp_dataset_dir, exist_ok=True)
+        s3.download_file(bucketName, inputS3Key, temp_filepath)
+
+    dataset_directory = (
+        seperated_vocal_folder_path if isYoutubeLink else temp_dataset_dir
+    )
+    generator = preprocess_dataset(dataset_directory, userId, "48k", 12)
     execute_generator_function(generator)
 
     generator = extract_f0_feature("0", 8, "rmvpe", True, userId, "v2", 64)
@@ -2306,8 +2340,11 @@ def use_rvc_train(raw_input):
         indexKey = f"models/{userId}/{modelName}.index"
         s3.upload_fileobj(index, bucketName, indexKey)
 
-    os.remove(temp_filepath)
-    shutil.rmtree(temp_dataset_dir)
+    if isYoutubeLink:
+        shutil.rmtree(vocal_seperation_folder_path)
+    else:
+        os.remove(temp_filepath)
+        shutil.rmtree(temp_dataset_dir)
 
     # rename f"./logs/{userId}/{index_name}" to f"./logs/{userId}/{userId}.index"
     os.rename(
@@ -2345,6 +2382,11 @@ def infer_tts():
     return use_rvc_infer(request.json["input"], isTTS=True)
 
 
+@app.route("/infer-youtube", methods=["POST"])
+def infer_youtube():
+    return use_rvc_train(request.json["input"], isYoutubeLink=True)
+
+
 def runpod_handler(event):
     input = event["input"]
     called_fx = None
@@ -2356,6 +2398,8 @@ def runpod_handler(event):
         called_fx = use_rvc_infer(event["input"], isSongInference=True)
     elif input["type"] == "TRAIN":
         return use_rvc_train(event["input"])
+    elif input["type"] == "TRAIN_YOUTUBE":
+        return use_rvc_train(event["input"], isYoutubeLink=True)
     else:
         return "Please provide a valid type: INFER, INFER_SONG or TRAIN"
 
