@@ -1,13 +1,13 @@
 {
     "input": {
         "arguments": {
-            "model": "adele.pth",
-            "userId":"123",
-            "ttsParams": {
-                "text": "Hello i am adele, test 1 2 3.",
-                "voiceType": "en-US-JennyNeural"
-            }
+            "inputS3Key": "input/userid/muratodemis.wav",
+            "userId":"321",
+            "modelName":"test-avril-lavigne",
+            "epochCount": 200,
+            "youtubeLink": "https://www.youtube.com/watch?v=5NPBIwQyPWE"
+
         },
-        "type":"INFER_TTS"
+        "type":"TRAIN_YOUTUBE"
     }
 }
