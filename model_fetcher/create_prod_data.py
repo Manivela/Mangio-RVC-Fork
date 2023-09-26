@@ -18,7 +18,7 @@ for file in os.listdir(folder_path):
         model_name = model_name.split(".")[0]
 
         # create prod data
-        runpodId = f"dump_1_{idx}"
+        runpodId = f"dump_2_{idx}"
         idx += 1
         gender = "MALE"
 
