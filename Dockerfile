@@ -16,4 +16,4 @@ RUN pip3 install torch torchaudio --extra-index-url https://download.pytorch.org
 RUN pip3 install -r requirements.txt
 RUN pip3 install torch torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
 
-CMD ["python3", "infer-api.py"]
+CMD ["python3", "infer_api.py"]
