@@ -1982,6 +1982,7 @@ from flask import request
 import boto3
 import datetime
 
+
 s3 = boto3.client(
     "s3",
     aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", None),
@@ -2096,6 +2097,9 @@ def download_model(
 
 
 async def use_rvc_infer(raw_input, isSongInference=False, isTTS=False):
+    print(raw_input)
+    print(isSongInference)
+    print(isTTS)
     temp_filepath = "temp_audiofile.wav"  # Choose a suitable path and filename
     # download from s3 and save to a file
     input = raw_input["arguments"]
