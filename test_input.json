@@ -1,13 +1,13 @@
 {
-    "input": {
-        "arguments": {
-            "inputS3Key": "input/userid/muratodemis.wav",
-            "userId":"321",
-            "modelName":"test-avril-lavigne",
-            "epochCount": 200,
-            "youtubeLink": "https://www.youtube.com/watch?v=5NPBIwQyPWE"
-
-        },
-        "type":"TRAIN_YOUTUBE"
-    }
+  "input": {
+    "arguments": {
+      "model": "adele.pth",
+      "userId": "123",
+      "ttsParams": {
+        "text": "Naber lo, ben adele",
+        "voiceType": "en-US-JennyNeural"
+      }
+    },
+    "type": "INFER_TTS"
+  }
 }
